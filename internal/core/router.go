@@ -1,6 +1,9 @@
 package core
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -68,17 +71,12 @@ func setupAPIv1Routes(
 			auth.POST("/check", authHandler.CheckToken)
 		}
 
-		// Post routes (public)
+		// Post routes (read-only public, write JWT protected)
 		posts := v1.Group("/posts")
 		{
 			posts.GET("", postHandler.List)
 			posts.GET("/:id", postHandler.GetByID)
-			posts.POST("", postHandler.Create)
-			posts.PUT("/:id", postHandler.Update)
-			posts.DELETE("/:id", postHandler.Delete)
 		}
-
-		// Post routes (JWT protected)
 		postsJWT := v1.Group("/postsjwt")
 		postsJWT.Use(httpHandler.JWTAuth(authService))
 		{
@@ -93,10 +91,14 @@ func setupAPIv1Routes(
 
 // setupAdminRoutes sets up admin routes with basic auth
 func setupAdminRoutes(router *gin.Engine) {
+	adminUser := os.Getenv("ADMIN_USER")
+	adminPass := os.Getenv("ADMIN_PASS")
+	if adminUser == "" || adminPass == "" {
+		fmt.Fprintf(os.Stderr, "fatal: ADMIN_USER and ADMIN_PASS must be set for admin dashboard\n")
+		os.Exit(1)
+	}
 	authorized := router.Group("/admin", gin.BasicAuth(gin.Accounts{
-		"username1": "password1",
-		"username2": "password2",
-		"username3": "password3",
+		adminUser: adminPass,
 	}))
 	{
 		authorized.GET("/dashboard", httpHandler.Dashboard)

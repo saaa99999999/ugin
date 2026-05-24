@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/viper"
@@ -52,7 +53,6 @@ func Load(configPath ...string) (*Config, error) {
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dbname", "ugin")
 	v.SetDefault("database.logmode", true)
-	v.SetDefault("jwt.secret", "change-me-in-production")
 	v.SetDefault("jwt.accessTokenExpireDuration", 1)
 	v.SetDefault("jwt.refreshTokenExpireDuration", 24)
 
@@ -98,10 +98,11 @@ func Load(configPath ...string) (*Config, error) {
 	// Build DSN based on driver
 	cfg.Database.DSN = buildDSN(cfg.Database)
 
-	// JWT config
+	// JWT config - secret MUST come from environment variable
 	cfg.JWT.Secret = v.GetString("server.secret")
 	if cfg.JWT.Secret == "" {
-		cfg.JWT.Secret = "change-me-in-production"
+		fmt.Fprintf(os.Stderr, "fatal: JWT_SECRET is not set. Generate one with: openssl rand -base64 32\n")
+		os.Exit(1)
 	}
 
 	accessTokenHours := v.GetInt("server.accessTokenExpireDuration")

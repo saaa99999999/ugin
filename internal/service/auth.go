@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt"
+	"golang.org/x/crypto/bcrypt"
 	"github.com/yakuter/ugin/internal/domain"
 	"github.com/yakuter/ugin/internal/repository"
 )
@@ -59,9 +62,8 @@ func (s *authService) SignIn(ctx context.Context, creds *domain.Credentials) (*d
 		return nil, fmt.Errorf("sign in: %w", err)
 	}
 
-	// TODO: Use proper password hashing (bcrypt)
-	// For now, simple comparison (NOT PRODUCTION READY)
-	if user.MasterPassword != creds.MasterPassword {
+	// Verify password using bcrypt comparison
+	if err := bcrypt.CompareHashAndPassword([]byte(user.MasterPassword), []byte(creds.MasterPassword)); err != nil {
 		s.logger.Warn("invalid password attempt", "email", creds.Email)
 		return nil, ErrInvalidCredentials
 	}
@@ -82,12 +84,21 @@ func (s *authService) SignUp(ctx context.Context, creds *domain.Credentials) err
 		return repository.ErrInvalidInput
 	}
 
-	// TODO: Add password validation (min length, complexity, etc.)
-	// TODO: Hash password with bcrypt
+	// Validate password minimum length
+	if len(creds.MasterPassword) < 8 {
+		return repository.ErrInvalidInput
+	}
+
+	// Hash password with bcrypt before storing
+	hashed, err := bcrypt.GenerateFromPassword([]byte(creds.MasterPassword), bcrypt.DefaultCost)
+	if err != nil {
+		s.logger.Error("failed to hash password", "error", err)
+		return fmt.Errorf("hash password: %w", err)
+	}
 
 	user := &domain.User{
 		Email:          creds.Email,
-		MasterPassword: creds.MasterPassword, // TODO: Hash this!
+		MasterPassword: string(hashed),
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -229,10 +240,13 @@ func (s *authService) parseToken(tokenString string) (*jwt.Token, error) {
 	return token, nil
 }
 
-// generateSecureKey generates a random secure key
+// generateSecureKey generates a random secure key using crypto/rand
 func generateSecureKey(length int) string {
-	// TODO: Use crypto/rand for production
-	// This is a placeholder
-	return fmt.Sprintf("%016x", time.Now().UnixNano())
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback: should never happen, but avoid returning zero value
+		return hex.EncodeToString([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
+	}
+	return hex.EncodeToString(b)
 }
 

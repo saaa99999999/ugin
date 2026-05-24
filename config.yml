@@ -9,7 +9,9 @@ database:
 
 server:
   port: "8081"
-  secret: "mySecretKey"
+  # JWT secret MUST be set via JWT_SECRET environment variable
+  # Generate: openssl rand -base64 32
+  secret: ""
   accessTokenExpireDuration: 1 
   refreshTokenExpireDuration: 1
   limitCountPerRequest: 1 
